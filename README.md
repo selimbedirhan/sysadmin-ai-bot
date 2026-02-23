@@ -1,4 +1,4 @@
-# ATLAS — Turkcell SysAdmin AI Bot
+# SysAdmin AI Bot
 
 > Agentic AI system administrator for enterprise Linux infrastructure.
 
@@ -92,7 +92,3 @@ sysadmin-ai-bot/
     │   └── network_monitor.py  # Ping, DNS, route tools
     └── requirements.txt
 ```
-
-## License
-
-Internal use only — Turkcell Technology.
