@@ -1,0 +1,97 @@
+# ============================================================
+#  SYSADMIN AI BOT — SYSTEM SETTINGS
+#  Turkcell Enterprise Infrastructure
+#
+#  Global configuration for runtime behavior, timeouts,
+#  logging, and model parameters.
+# ============================================================
+
+# ============================================================
+#  APPLICATION SETTINGS
+# ============================================================
+application:
+  name: "TAO — Turkcell Ajan-Ops"
+  version: "1.0.0"
+  environment: "production"
+  debug: false
+
+# ============================================================
+#  MODEL CONFIGURATION
+#  Defines parameters for each model tier.
+# ============================================================
+models:
+  router:
+    name: "llama3.2:3b"
+    temperature: 0.1          # Near-deterministic for classification
+    max_tokens: 10            # Only needs to output "CHAT" or "SYSADMIN"
+    timeout_seconds: 15
+    description: "Fast classifier — routes queries to correct model"
+
+  expert:
+    name: "llama3.1:8b"
+    temperature: 0.3          # Low creativity, high accuracy for sysadmin
+    max_tokens: 2048          # Needs room for command explanations
+    timeout_seconds: 120      # Complex reasoning takes time on 8B
+    description: "Expert model — handles sysadmin reasoning and tool calls"
+
+  chat:
+    name: "llama3.2:3b"
+    temperature: 0.7          # More conversational for general chat
+    max_tokens: 512
+    timeout_seconds: 30
+    description: "Lightweight model for general conversation"
+
+# ============================================================
+#  MCP SERVER SETTINGS
+# ============================================================
+mcp_server:
+  host: "mcp-server"
+  port: 8100
+  base_url: "http://mcp-server:8100"
+  request_timeout_seconds: 60
+  max_retries: 3
+  retry_backoff_seconds: 2
+
+# ============================================================
+#  SSH DEFAULTS
+#  Can be overridden per-target in future configurations.
+# ============================================================
+ssh:
+  default_port: 22
+  connection_timeout_seconds: 10
+  command_timeout_seconds: 30
+  max_output_lines: 500       # Truncate excessive output
+  known_hosts_check: true
+  key_based_auth: true        # Prefer key-based over password
+
+# ============================================================
+#  LOGGING
+# ============================================================
+logging:
+  level: "INFO"               # DEBUG | INFO | WARNING | ERROR | CRITICAL
+  format: "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+  date_format: "%Y-%m-%d %H:%M:%S"
+  log_to_file: false
+  log_file_path: "/app/logs/sysadmin-ai.log"
+
+# ============================================================
+#  SAFETY & GUARDRAILS
+# ============================================================
+safety:
+  # Commands that are ALWAYS blocked regardless of role
+  global_blocklist:
+    - "rm -rf /"
+    - "rm -rf /*"
+    - ":(){ :|:& };:"         # Fork bomb
+    - "> /dev/sda"
+    - "mkfs /dev/sda"
+    - "dd if=/dev/zero of=/dev/sda"
+    - "chmod -R 777 /"
+    - "wget * | bash"
+    - "curl * | bash"
+
+  # Maximum length of a single command (characters)
+  max_command_length: 1000
+
+  # If true, all executed commands are logged to audit trail
+  audit_logging: true

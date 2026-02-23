@@ -1,0 +1,154 @@
+# ============================================================
+#  SYSADMIN AI BOT — ROLE-BASED ACCESS CONTROL (RBAC)
+#  Turkcell Enterprise Infrastructure
+#
+#  Defines WHO can do WHAT. Every tool invocation passes
+#  through this gate before execution.
+#
+#  Principle: Least Privilege — users get the minimum
+#  permissions required for their role.
+# ============================================================
+
+# ============================================================
+#  ROLE DEFINITIONS
+#  Each role has:
+#    - description : Human-readable purpose
+#    - allowed_actions : List of permitted action categories
+#    - denied_commands : Explicit blocklist (overrides allowed)
+#    - max_safety_level : Highest safety tier the role can touch
+#    - requires_confirmation : Actions that need explicit 'yes'
+# ============================================================
+
+roles:
+  # ----------------------------------------------------------
+  #  ADMIN — Full access to all infrastructure operations.
+  #  Intended for: Senior SysAdmins, Lead Engineers, SRE Leads
+  # ----------------------------------------------------------
+  admin:
+    description: "Full infrastructure access — Senior SysAdmin / SRE Lead"
+    allowed_actions:
+      - "ssh_execute"
+      - "service_management"
+      - "network_diagnostics"
+      - "system_monitoring"
+      - "user_management"
+      - "firewall_management"
+      - "package_management"
+      - "log_analysis"
+      - "file_operations"
+      - "disk_management"
+    denied_commands:
+      # Even admins cannot run these without override
+      - "rm -rf /"
+      - "mkfs /dev/sda"
+      - "dd if=/dev/zero of=/dev/sda"
+      - "> /dev/sda"
+    max_safety_level: "dangerous"    # 🔴 Can execute after confirmation
+    requires_confirmation:
+      - "dangerous"                  # 🔴 Must confirm
+      - "caution"                    # 🟡 Must confirm
+
+  # ----------------------------------------------------------
+  #  JUNIOR — Read-only + safe diagnostic operations.
+  #  Intended for: Junior Engineers, NOC Operators, Trainees
+  # ----------------------------------------------------------
+  junior:
+    description: "Read-only diagnostics — Junior Engineer / NOC Operator"
+    allowed_actions:
+      - "network_diagnostics"
+      - "system_monitoring"
+      - "log_analysis"
+    denied_commands:
+      - "rm"
+      - "rmdir"
+      - "mkfs"
+      - "fdisk"
+      - "dd"
+      - "shutdown"
+      - "reboot"
+      - "halt"
+      - "poweroff"
+      - "init"
+      - "systemctl stop"
+      - "systemctl restart"
+      - "systemctl disable"
+      - "kill"
+      - "killall"
+      - "pkill"
+      - "iptables"
+      - "ufw"
+      - "firewall-cmd"
+      - "useradd"
+      - "userdel"
+      - "usermod"
+      - "groupadd"
+      - "groupdel"
+      - "passwd"
+      - "chown"
+      - "chmod"
+      - "mount"
+      - "umount"
+      - "apt install"
+      - "apt remove"
+      - "yum install"
+      - "yum remove"
+      - "dnf install"
+      - "dnf remove"
+    max_safety_level: "safe"         # 🟢 Only safe operations
+    requires_confirmation: []        # No confirmations needed (can't do risky ops)
+
+# ============================================================
+#  ACTION → SAFETY LEVEL MAPPING
+#  Maps each action category to its default safety level.
+#  The Router/RBAC module uses this to classify requests.
+# ============================================================
+
+action_safety_map:
+  # 🟢 SAFE — No side effects, read-only
+  network_diagnostics: "safe"
+  system_monitoring: "safe"
+  log_analysis: "safe"
+
+  # 🟡 CAUTION — Modifies state, reversible
+  service_management: "caution"
+  package_management: "caution"
+  user_management: "caution"
+  file_operations: "caution"
+
+  # 🔴 DANGEROUS — Potentially destructive, irreversible
+  firewall_management: "dangerous"
+  disk_management: "dangerous"
+
+  # Special: SSH execute depends on the actual command
+  ssh_execute: "dynamic"            # Classified at runtime by command analysis
+
+# ============================================================
+#  USER REGISTRY
+#  Maps usernames to their assigned roles.
+#  In production, this would integrate with LDAP/Active Directory.
+# ============================================================
+
+users:
+  turkcell_admin:
+    role: "admin"
+    full_name: "System Administrator"
+    department: "Infrastructure Operations"
+
+  turkcell_junior:
+    role: "junior"
+    full_name: "Junior Operator"
+    department: "NOC — Network Operations Center"
+
+# ============================================================
+#  DEFAULT SETTINGS
+# ============================================================
+
+defaults:
+  # If a user is not found in the registry, use this role
+  fallback_role: "junior"
+
+  # Maximum number of commands per session (rate limiting)
+  max_commands_per_session: 100
+
+  # Session timeout in minutes
+  session_timeout_minutes: 60

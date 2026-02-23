@@ -1,0 +1,125 @@
+# ============================================================
+#  SYSADMIN AI BOT — DOCKER COMPOSE ORCHESTRATION
+#  Architecture: 3-Container Microservices Model
+#  Target: MacBook M2 Air — 6 CPUs, 10.5 GB RAM allocation
+#
+#  Container 1: ollama-engine  (AI Inference)
+#  Container 2: core-app       (LangChain Orchestration)
+#  Container 3: mcp-server     (Tool Execution via MCP)
+# ============================================================
+
+services:
+
+  # --------------------------------------------------------
+  #  CONTAINER 1: OLLAMA ENGINE
+  #  The AI brain — serves llama3.2:3b and llama3.1:8b
+  #  Gets the lion's share of resources for inference.
+  # --------------------------------------------------------
+  ollama-engine:
+    build:
+      context: .
+      dockerfile: docker/ollama.Dockerfile
+    container_name: sysadmin-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - sysadmin-net
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 7G
+        reservations:
+          cpus: "2.0"
+          memory: 4G
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:11434/api/tags" ]
+      interval: 15s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+
+  # --------------------------------------------------------
+  #  CONTAINER 2: CORE APPLICATION
+  #  LangChain orchestration, dynamic routing, RBAC security.
+  #  Lightweight — most work is offloaded to Ollama & MCP.
+  # --------------------------------------------------------
+  core-app:
+    build:
+      context: .
+      dockerfile: docker/app.Dockerfile
+    container_name: sysadmin-core
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    depends_on:
+      ollama-engine:
+        condition: service_healthy
+      mcp-server:
+        condition: service_healthy
+    networks:
+      - sysadmin-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+
+  # --------------------------------------------------------
+  #  CONTAINER 3: MCP SERVER (Model Context Protocol)
+  #  The "robotic arms" — executes SSH, Ping, monitoring.
+  #  Has access to SSH keys for target machine operations.
+  # --------------------------------------------------------
+  mcp-server:
+    build:
+      context: .
+      dockerfile: docker/mcp.Dockerfile
+    container_name: sysadmin-mcp
+    restart: unless-stopped
+    networks:
+      - sysadmin-net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1536M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      test: [ "CMD", "curl", "-sf", "http://localhost:8100/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    env_file:
+      - .env
+    volumes:
+      - ~/.ssh:/root/.ssh:ro
+
+# ============================================================
+#  NETWORK: Internal-only bridge — no external access.
+# ============================================================
+networks:
+  sysadmin-net:
+    driver: bridge
+    # NOTE: 'internal: true' removed — Ollama needs internet
+    # access to pull models on first run. Security is enforced
+    # via RBAC, command blocklists, and container-level controls.
+
+    # ============================================================
+    #  VOLUMES: Persistent model storage for Ollama.
+    # ============================================================
+volumes:
+  ollama-models:
+    driver: local
